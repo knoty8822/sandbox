@@ -1,51 +1,71 @@
 import streamlit as st
-import yfinance as yf
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import plotly.express as px
 
-from utils.data_fetcher import get_stock_data
-from utils.indicators import add_indicators
-from visualizations.candlestick_chart import plot_candlestick
-from visualizations.export_tools import export_chart
+# App Title
+st.title("Excel File Uploader and Advanced Visualizer")
 
-st.set_page_config(
-    page_title="Stock Market Visualizer",
-    layout="wide"
-)
+# File uploader
+uploaded_file = st.file_uploader("Upload an Excel file", type=["xlsx"])
 
-st.title("📊 Stock Market Visualizer")
+if uploaded_file is not None:
+    # Read the Excel file
+    try:
+        df = pd.read_excel(uploaded_file)
+        
+        # Display Data Preview
+        st.write("### Data Preview")
+        st.dataframe(df)
 
-# Sidebar Controls
-ticker = st.sidebar.text_input("Ticker", "AAPL")
-period = st.sidebar.selectbox(
-    "Timeframe",
-    ["1mo","3mo","6mo","1y","2y","5y","10y"]
-)
+        # Show Summary Statistics
+        st.write("### Summary Statistics")
+        st.write(df.describe())
 
-ma1 = st.sidebar.slider("Moving Average 1", 5, 100, 20)
-ma2 = st.sidebar.slider("Moving Average 2", 20, 200, 50)
+        # Fancy Visualizations
+        st.write("### Fancy Visualizations")
 
-show_rsi = st.sidebar.checkbox("Show RSI", True)
-show_bb = st.sidebar.checkbox("Show Bollinger Bands", True)
+        # Dropdowns for selecting columns
+        numeric_columns = df.select_dtypes(include=['float64', 'int64']).columns.tolist()
+        
+        if numeric_columns:
+            # Correlation Heatmap
+            st.write("#### Correlation Heatmap")
+            fig, ax = plt.subplots()
+            sns.heatmap(df[numeric_columns].corr(), annot=True, cmap="coolwarm", ax=ax)
+            st.pyplot(fig)
 
-# Fetch Data
-data = get_stock_data(ticker, period)
+            # Boxplot
+            st.write("#### Boxplot")
+            box_col = st.selectbox("Select a column for Boxplot", numeric_columns)
+            if box_col:
+                fig, ax = plt.subplots()
+                sns.boxplot(y=df[box_col], ax=ax)
+                ax.set_title(f"Boxplot for {box_col}")
+                st.pyplot(fig)
 
-if data is not None:
+            # Histogram
+            st.write("#### Histogram")
+            hist_col = st.selectbox("Select a column for Histogram", numeric_columns)
+            if hist_col:
+                fig, ax = plt.subplots()
+                sns.histplot(df[hist_col], bins=20, kde=True, ax=ax)
+                ax.set_title(f"Histogram for {hist_col}")
+                st.pyplot(fig)
 
-    df = add_indicators(data, ma1, ma2)
+            # Interactive Scatter Plot
+            st.write("#### Interactive Scatter Plot")
+            scatter_x = st.selectbox("X-axis", numeric_columns, index=0)
+            scatter_y = st.selectbox("Y-axis", numeric_columns, index=1 if len(numeric_columns) > 1 else 0)
+            if scatter_x and scatter_y:
+                fig = px.scatter(df, x=scatter_x, y=scatter_y, title=f"{scatter_x} vs {scatter_y}")
+                st.plotly_chart(fig)
 
-    fig = plot_candlestick(
-        df,
-        ma1=ma1,
-        ma2=ma2,
-        show_rsi=show_rsi,
-        show_bb=show_bb
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-    if st.button("Export Chart"):
-        export_chart(fig, ticker)
-
+        else:
+            st.warning("No numeric columns available for visualization.")
+    
+    except Exception as e:
+        st.error(f"Error loading file: {e}")
 else:
-    st.error("Unable to fetch stock data.")
+    st.info("Awaiting file upload...")
